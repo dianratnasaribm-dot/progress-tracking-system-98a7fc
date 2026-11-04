@@ -214,6 +214,7 @@ export default async (req: Request, context: Context) => {
         }));
 
         return Response.json({
+          source: "db",
           workspace: wsList[0] || DEFAULT_WORKSPACE,
           users: userList.length ? userList : INITIAL_USERS,
           projects: formattedProjects.length ? formattedProjects : INITIAL_PROJECTS,
@@ -224,6 +225,7 @@ export default async (req: Request, context: Context) => {
       } catch (err) {
         console.warn("Database fallback to memory dataset:", err);
         return Response.json({
+          source: "fallback",
           workspace: DEFAULT_WORKSPACE,
           users: INITIAL_USERS,
           projects: INITIAL_PROJECTS,
