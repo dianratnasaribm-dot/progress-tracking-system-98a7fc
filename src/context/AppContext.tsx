@@ -152,9 +152,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return 'usr-1';
+    if (typeof window === 'undefined') return null;
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    return saved !== null ? (saved === '' ? null : saved) : 'usr-1';
+    return saved ? saved : null;
   });
 
   const currentUser = useMemo(() => {
@@ -280,30 +280,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [notificationsList]);
 
-  // Background Database Sync on Mount
+  // Database Sync: database = sumber data utama.
+  // Ambil data terbaru saat halaman dibuka, saat tab kembali aktif, dan tiap 15 detik.
   useEffect(() => {
+    let cancelled = false;
     const fetchFromDb = async () => {
       try {
         const res = await fetch(`/api/bootstrap?workspaceId=${encodeURIComponent(activeWorkspaceId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.tasks && data.tasks.length > 0) {
-            // If local storage is empty or first run, hydrate from server
-            const hasCustomLocal = localStorage.getItem('pp_has_custom_modifications');
-            if (!hasCustomLocal) {
-              if (data.users) setUsersList(data.users);
-              if (data.projects) setProjectsList(data.projects);
-              if (data.tasks) setTasksList(data.tasks);
-              if (data.activityLogs) setLogsList(data.activityLogs);
-              if (data.notifications) setNotificationsList(data.notifications);
-            }
-          }
-        }
+        if (!res.ok) return;
+        const data = await res.json();
+        // Jangan timpa data lokal dengan data demo kalau database sedang error
+        if (cancelled || !data || data.source !== 'db') return;
+        if (Array.isArray(data.users)) setUsersList(data.users);
+        if (Array.isArray(data.projects)) setProjectsList(data.projects);
+        if (Array.isArray(data.tasks)) setTasksList(data.tasks);
+        if (Array.isArray(data.activityLogs)) setLogsList(data.activityLogs);
+        if (Array.isArray(data.notifications)) setNotificationsList(data.notifications);
       } catch (err) {
-        // Silently use local state if API is offline
+        // API offline: tetap pakai data lokal sementara
       }
     };
     fetchFromDb();
+    const interval = window.setInterval(fetchFromDb, 15000);
+    const onFocus = () => fetchFromDb();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [activeWorkspaceId]);
 
   // Helper to add Activity Log
